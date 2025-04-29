@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Upload with MD5 Check</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body>
+    <h1>Rocknix DTB overrides for almost supported devices</h1>
+    Upload your <b>stock</b> dtb file here:
+    <form id="uploadForm">
+        <input type="file" id="fileInput" required>
+        <button type="submit">Upload</button>
+    </form>
+    <div id="md5_display"></div>
+
+    <script>
+        function showDownload(blob) {
+            // Extract the file from the server's response
+            const downloadUrl = URL.createObjectURL(blob);
+
+            // Trigger the download
+            const a = document.createElement('a');
+            a.innerHTML = '<button>Download override</button>';
+            a.href = downloadUrl;
+            a.download = 'mipi-panel.dtbo';
+            a.id = 'downloadButton';
+            document.body.appendChild(a);
+        };
+
+        document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const oldbutton = document.getElementById('downloadButton');
+            if (oldbutton) { document.body.removeChild(oldbutton); }
+
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Please select a file.");
+                return;
+            }
+
+            // Calculate MD5 hash
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const fileContents = reader.result;
+                const wordArray = CryptoJS.lib.WordArray.create(fileContents);
+                const md5Hash = CryptoJS.MD5(wordArray).toString();
+                document.getElementById("md5_display").innerText = 'MD5: ' + md5Hash;
+
+                // Check with server
+                const response = await fetch(`dtbo/${md5Hash}`);
+                if (response.ok) {
+                    showDownload(await response.blob());
+                } else if (response.status === 404) {
+                    // Upload file content
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    const response = await fetch(`dtb_upload`, {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        alert("File upload failed.");
+                        return;
+                    }
+
+                    showDownload(await response.blob());
+
+                } else {
+                    alert("Unexpected error while checking your dtb");
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        });
+    </script>
+</body>
+</html>
