@@ -32,10 +32,12 @@ def upload_file():
     content = file.read()
     md5 = hashlib.md5(content).hexdigest()
     filename = md5 + '-' + secure_filename(file.filename)
-    with open(os.path.join(app.config['UPLOAD_DIR'], filename), 'wb') as f:
-        f.write(content)
 
     dtbo = make_dtbo(content, {})
+    # Save strictly after getting dtbo to lower abuse
+    # Garbage will just crash the extractor, and nothing will be saved on disk
+    with open(os.path.join(app.config['UPLOAD_DIR'], filename), 'wb') as f:
+        f.write(content)
     with open(os.path.join(app.config['DTBO_DIR'], md5), 'wb') as f:
         f.write(dtbo)
 

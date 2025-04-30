@@ -3,30 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>File Upload with MD5 Check</title>
+    <title>DTB override generator for Rocknix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+    <style>
+        input::file-selector-button {
+          font-weight: bold;
+          padding: 0.5em;
+          border: thin solid grey;
+          border-radius: 3px;
+        }
+    </style>
 </head>
 <body>
-    <h1>Rocknix DTB overrides for almost supported devices</h1>
-    Upload your <b>stock</b> dtb file here:
-    <form id="uploadForm">
-        <input type="file" id="fileInput" required>
-        <button type="submit">Upload</button>
-    </form>
+    <h1>Rocknix DTB overrides for <i>almost</i> supported devices</h1>
+    <div>
+        Upload your <b>stock</b> dtb file here:
+        <form id="uploadForm">
+            <input type="file" id="fileInput" required>
+            <button type="submit">Upload</button>
+        </form>
+    </div>
     <div id="md5_display"></div>
+    <div id="results_container"></div>
+    <hr style="width:50%">
+    <div>Get help at <a href="https://discord.com/channels/948029830325235753/1110966019389935616">Rocknix Discord</a> (rockchip-rk3326 channel)</div>
 
     <script>
         function showDownload(blob) {
             // Extract the file from the server's response
             const downloadUrl = URL.createObjectURL(blob);
 
+            const div = document.createElement('div');
+            div.id = 'downloadButton';
+
             // Trigger the download
             const a = document.createElement('a');
             a.innerHTML = '<button>Download override</button>';
             a.href = downloadUrl;
             a.download = 'mipi-panel.dtbo';
-            a.id = 'downloadButton';
-            document.body.appendChild(a);
+            div.appendChild(a);
+
+            const help = document.createElement('div');
+            help.innerHTML  = 'You get a <code>mipi-panel.dtbo</code> file.<br/>';
+            help.innerHTML += 'On a boot (<code>ROCKNIX</code>) partition create a directory named <code>overlays</code><br/>';
+            help.innerHTML += 'Put the <code>mipi-panel.dtbo</code> file into <code>overlays</code> directory.';
+            div.appendChild(help);
+
+            document.getElementById('results_container').appendChild(div);
         };
 
         document.getElementById('uploadForm').addEventListener('submit', async function(event) {
@@ -66,7 +90,7 @@
                     });
 
                     if (!response.ok) {
-                        alert("File upload failed.");
+                        alert("Override generation failed. Is uploaded file a dtb?");
                         return;
                     }
 
