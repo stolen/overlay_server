@@ -1,14 +1,37 @@
 from flask import Flask, request, render_template
 from werkzeug.utils import secure_filename
 import hashlib
-import os
+import os, time
+import requests, json
 
 from rocknix_dtbo import make_dtbo
 
 app = Flask(__name__)
+try:
+    app.config.from_file('config.json', load=json.load)
+except:
+    pass
 app.config['UPLOAD_DIR'] = 'uploads'
 app.config['DTBO_DIR'] = 'dtbo'
+app.config['FEEDBACK_DIR'] = 'feedback'
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024  # 512K should be enough, dtbs are usually about 100K
+
+
+def send_to_telegram(message):
+    """Send a message to a Telegram chat."""
+    if not 'TELEGRAM_APIKEY' in app.config:
+        return None
+    apikey = app.config['TELEGRAM_APIKEY']
+    url = f"https://api.telegram.org/bot{apikey}/sendMessage"
+    for chat in app.config['TELEGRAM_CHATS']:
+        payload = {
+            "chat_id": chat,
+            "text": message,
+            "parse_mode": "Markdown"
+        }
+        response = requests.post(url, json=payload)
+    return response.status_code, response.text
+
 
 @app.route('/', methods=['GET'])
 def index():
@@ -17,7 +40,7 @@ def index():
 @app.route('/dtbo/<md5>')
 def download_dtbo(md5):
     try:
-        f = open(os.path.join(app.config['DTBO_DIR'], md5), 'rb')
+        f = open(os.path.join(app.config['DTBO_DIR'], secure_filename(md5)), 'rb')
         dtbo = f.read()
         return (dtbo, 200, {'content-disposition': 'attachment; filename="mipi-panel.dtbo"'})
     except:
@@ -36,14 +59,34 @@ def upload_file():
     dtbo = make_dtbo(content, {})
     # Save strictly after getting dtbo to lower abuse
     # Garbage will just crash the extractor, and nothing will be saved on disk
+    os.makedirs(app.config['UPLOAD_DIR'], exist_ok=True)
+    os.makedirs(app.config['DTBO_DIR'], exist_ok=True)
     with open(os.path.join(app.config['UPLOAD_DIR'], filename), 'wb') as f:
         f.write(content)
     with open(os.path.join(app.config['DTBO_DIR'], md5), 'wb') as f:
         f.write(dtbo)
+    send_to_telegram(f"new dtb: {filename}")
 
     return (dtbo, 200, {'content-disposition': 'attachment; filename="mipi-panel.dtbo"'})
 
+
+@app.route('/feedback/<md5>', methods=['POST'])
+def feedback(md5):
+    dev = request.form.get('device')
+    desc = request.form.get('description')
+    if (not dev) or (not desc):
+        return ("Bad form", 400, {})
+    os.makedirs(app.config['FEEDBACK_DIR'], exist_ok=True)
+    filename = secure_filename(md5) + '-' + str(time.time())
+    with open(os.path.join(app.config['FEEDBACK_DIR'], filename), 'w') as f:
+        f.write('device: ' + dev)
+        f.write('\n\n')
+        f.write(desc)
+        f.write('\n')
+    send_to_telegram(f"dev: {dev}\n\n{desc}")
+
+    return ("Accepted", 201, {})
+
+
 if __name__ == '__main__':
-    os.makedirs(app.config['UPLOAD_DIR'], exist_ok=True)
-    os.makedirs(app.config['DTBO_DIR'], exist_ok=True)
     app.run(debug=True)

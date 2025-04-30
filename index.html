@@ -30,7 +30,7 @@
     <div>Get help at <a href="https://discord.com/channels/948029830325235753/1110966019389935616">Rocknix Discord</a> (rockchip-rk3326 channel)</div>
 
     <script>
-        function showDownload(blob) {
+        function showDownload(md5Hash, blob) {
             // Extract the file from the server's response
             const downloadUrl = URL.createObjectURL(blob);
 
@@ -44,11 +44,24 @@
             a.download = 'mipi-panel.dtbo';
             div.appendChild(a);
 
+            // Short instructions
             const help = document.createElement('div');
             help.innerHTML  = 'You get a <code>mipi-panel.dtbo</code> file.<br/>';
             help.innerHTML += 'On a boot (<code>ROCKNIX</code>) partition create a directory named <code>overlays</code><br/>';
             help.innerHTML += 'Put the <code>mipi-panel.dtbo</code> file into <code>overlays</code> directory.';
             div.appendChild(help);
+
+            div.appendChild(document.createElement('hr'));
+
+            // Feedback form
+            const fb = document.createElement('form');
+            fb.action = "feedback/" + md5Hash;
+            fb.method = "POST";
+            fb.innerHTML  = '<label for="device">Your device:</label> <input type="text" id="device" name="device" required><br><br>';
+            fb.innerHTML += '<label for="description">Describe what is broken:</label>';
+            fb.innerHTML += '<textarea id="description" name="description" rows="10" required></textarea><br><br>';
+            fb.innerHTML += '<button type="submit">Submit</button>';
+            div.appendChild(fb);
 
             document.getElementById('results_container').appendChild(div);
         };
@@ -78,7 +91,7 @@
                 // Check with server
                 const response = await fetch(`dtbo/${md5Hash}`);
                 if (response.ok) {
-                    showDownload(await response.blob());
+                    showDownload(md5Hash, await response.blob());
                 } else if (response.status === 404) {
                     // Upload file content
                     const formData = new FormData();
@@ -94,7 +107,7 @@
                         return;
                     }
 
-                    showDownload(await response.blob());
+                    showDownload(md5Hash, await response.blob());
 
                 } else {
                     alert("Unexpected error while checking your dtb");
