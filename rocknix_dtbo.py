@@ -3,7 +3,7 @@
 # https://pypi.org/project/fdt/
 # pip install fdt
 
-import sys
+import os
 import fdt
 import math
 
@@ -18,22 +18,13 @@ def prop_default(prop, default):
 def absfrac(x):
     return abs(x - round(x))
 
-
-def make_dtbo(dtb_data, args):
+def panel_to_desc(panel, args):
     if 'name' in args:
         g_name = args['name'] + ' '
     else:
         g_name = ''
-    comment = False
+    comment = args.get('comment')
     acc = []
-
-    dt = fdt.parse_dtb(dtb_data)
-    for target in ["dsi@ff450000/panel@0", "dsi@fe060000/panel@0"]:
-        try:
-            panel = dt.get_node(target)
-            break
-        except:
-            pass
 
     delays = [
             prop_default("prepare-delay-ms", 50),
@@ -70,6 +61,10 @@ def make_dtbo(dtb_data, args):
                 m.get_property("vsync-len").value,
                 m.get_property("vback-porch").value,
                 ]
+        # Quirk for D28s which has hactive/vactive swapped
+        if 'PRs' in args['flags']:
+            hor[0] = m.get_property("vactive").value
+            ver[0] = m.get_property("hactive").value
 
         mode = {'clock': clock, 'hor': hor, 'ver': ver}
         if (m.get_property("phandle").value == native):
@@ -90,14 +85,15 @@ def make_dtbo(dtb_data, args):
         w = panel.get_property("width-mm").value
         h = panel.get_property("height-mm").value
     except:
-        if not args.diagonal:
-            sys.stderr.buffer.write(b'width-mm or height-mm not set, specify diagonal with -D option\n')
-            exit(1)
+        if args.diagonal:
+            diag_mm = args.diagonal * 25.4
+        else:
+            diag_mm = 3.5 * 2.54
+
         randmode = list(modes.values())[0]
         hactive = randmode['hor'][0]
         vactive = randmode['ver'][0]
         pxdiag = math.sqrt(hactive*hactive + vactive*vactive)
-        diag_mm = args.diagonal * 25.4
         w = round(diag_mm * hactive/pxdiag)
         h = round(diag_mm * vactive/pxdiag)
 
@@ -193,14 +189,80 @@ def make_dtbo(dtb_data, args):
         maybe_comment = f" # orig_cmd=0x{cmd:x}" if comment else ""
         acc += [f"I seq={data.hex()}{maybe_wait}{maybe_comment}"]
 
+    return acc
+
+def resolve_phandle(dt, phandle):
+    paths = [os.path.join(p.parent.path, p.parent.name)
+             for p in dt.search('phandle', fdt.ItemType.PROP_WORDS)
+             if p.value == phandle]
+    return paths[0]
+
+def add_overlay(overlay, path):
+    for f in range(100):
+        nodename = 'fragment@' + str(f)
+        if overlay.exist_node(nodename):
+            pass
+        else:
+            fragnode = fdt.Node(nodename)
+            if path[0] == '&':
+                fragnode.set_property('target', 0xffffffff)
+                overlay.set_property(path[1:], '/'+nodename+':target:0', path='/__fixups__')
+            else:
+                fragnode.set_property('target-path', path)
+            overlay.add_item(fragnode)
+            ovlnode = fdt.Node('__overlay__')
+            fragnode.append(ovlnode)
+            return ovlnode
+
+
+def make_dtbo(dtb_data, args):
+    dt = fdt.parse_dtb(dtb_data)
+    symbols = dt.get_node('__symbols__')
+
+    dsipath = symbols.get_property('dsi').value
+    # panelpath is /dsi@ff450000/panel@0 on rk3326 and /dsi@fe060000/panel@0 on rk3566
+    panelpath = dsipath + '/panel@0'
+    panel = dt.get_node(panelpath)
+    pdesc = panel_to_desc(panel, args)
 
     # remove empty lines as pyfdt does not like them
-    acc = [ l for l in acc if l != '']
+    pdesc = [ l for l in pdesc if l != '']
+
     # create an overlay tree
     overlay = fdt.FDT()
     overlay.header.version = 17
-    overlay.set_property('target-path', '/'+target, path='fragment@0')
-    overlay.set_property('compatible', 'rocknix,generic-dsi', path='fragment@0/__overlay__')
-    overlay.set_property('panel_description', acc, path='fragment@0/__overlay__')
+
+    panel_ovl = add_overlay(overlay, panelpath)
+    panel_ovl.set_property('compatible', 'rocknix,generic-dsi')
+    panel_ovl.set_property('panel_description', pdesc)
+
+    # If needed, invert right stick
+    if 'RSi' in args['flags']:
+        rsi_ovl = add_overlay(overlay, '&joypad')
+        rsi_ovl.set_property('invert-absrx', 1)
+        rsi_ovl.set_property('invert-absry', 1)
+        args['logger'].info(f"invert right stick on {rsi_ovl.path}")
+
+    if dt.exist_node('/rk817-sound'):
+        snd = dt.get_node('/rk817-sound')
+        # fetch raw   hp-det-gpio = <0x6f 0x16 0x00>;
+        hpdet = snd.get_property('hp-det-gpio').data
+        # resolve <0x6f> into '/pinctrl/gpio2@ff260000'
+        hpdet_gpio_path = resolve_phandle(dt, hpdet[0])
+        # find symbol 'gpio2' for path '/pinctrl/gpio2@ff260000'
+        gpiosyms = [p.name for p in symbols.props if p.value == hpdet_gpio_path]
+        if gpiosyms:
+            # on success, add overlay
+            hpdet_ovl = add_overlay(overlay, '/rk817-sound')
+            hpdet_ovl.set_property('simple-audio-card,hp-det-gpio', [0xffffffff, hpdet[1], hpdet[2]])
+            overlay.set_property(gpiosyms[0], hpdet_ovl.path+'/__overlay__:simple-audio-card,hp-det-gpio:0', path='/__fixups__')
+            args['logger'].info(f"hp-det-gpio {gpiosyms[0]} on {hpdet_ovl.path}")
+
+    # Move fixups to the very end (if any)
+    if overlay.exist_node('__fixups__'):
+        fixups = overlay.get_node('__fixups__')
+        overlay.remove_node('__fixups__')
+        overlay.add_item(fixups)
+
     # send the overlay to output
     return overlay.to_dtb()

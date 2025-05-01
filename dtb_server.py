@@ -47,25 +47,32 @@ def download_dtbo(md5):
         return ('Not found', 404, {})
 
 
-@app.route('/dtb_upload', methods=['POST'])
+@app.route('/convert_dtb', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
         return 'No file part'
     file = request.files['file']
     content = file.read()
-    md5 = hashlib.md5(content).hexdigest()
-    filename = md5 + '-' + secure_filename(file.filename)
 
-    dtbo = make_dtbo(content, {})
+    md5 = hashlib.md5(content).hexdigest()
+    opts = request.args.get('opts', '')
+
+    ovlname = secure_filename(md5 + opts)
+    filename = secure_filename(md5 + '-' + file.filename)
+
+    flags = opts.split('-')
+    flags = [ f for f in flags if f != '']
+    dtbo = make_dtbo(content, {'flags': flags, 'logger': app.logger})
+
     # Save strictly after getting dtbo to lower abuse
     # Garbage will just crash the extractor, and nothing will be saved on disk
     os.makedirs(app.config['UPLOAD_DIR'], exist_ok=True)
     os.makedirs(app.config['DTBO_DIR'], exist_ok=True)
     with open(os.path.join(app.config['UPLOAD_DIR'], filename), 'wb') as f:
         f.write(content)
-    with open(os.path.join(app.config['DTBO_DIR'], md5), 'wb') as f:
+    with open(os.path.join(app.config['DTBO_DIR'], ovlname), 'wb') as f:
         f.write(dtbo)
-    send_to_telegram(f"new dtb: {filename}")
+    send_to_telegram(f"new overlay: {ovlname} for {file.filename}")
 
     return (dtbo, 200, {'content-disposition': 'attachment; filename="mipi-panel.dtbo"'})
 
@@ -83,7 +90,7 @@ def feedback(md5):
         f.write('\n\n')
         f.write(desc)
         f.write('\n')
-    send_to_telegram(f"dev: {dev}\n\n{desc}")
+    send_to_telegram(f"feedback {filename}\ndev: {dev}\n\n{desc}")
 
     return ("Accepted", 201, {})
 

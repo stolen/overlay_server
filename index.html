@@ -17,16 +17,27 @@
 </head>
 <body>
     <h1>Rocknix DTB overrides for <i>almost</i> supported devices</h1>
+    <h5>Note: this service is for Rocknix Nightly</h5>
+
     <div>
-        Upload your <b>stock</b> dtb file here:
+    Please make sure you have a fresh (20250427 or later) image installed.<br/>
+    Download at <a href=https://nightly.rocknix.org/><b>https://nightly.rocknix.org/</b></a><br/>
+    For K36, R36Max and similar "EE Clones" you need <b>B</b> image, e.g. <code>ROCKNIX-RK3326.aarch64-20250430-b.img.gz</code><br/>
+    </div>
+
+    <hr style="width:100%">
+    <h5>Upload your <b>stock</b> dtb file here:</h5>
+    <div>
         <form id="uploadForm">
-            <input type="file" id="fileInput" required>
+            <input type="file" id="fileInput" required><br/>
+            <input type="checkbox" id="RSi" name="RSi" /> <label for="RSi">Invert right stick</label><br/>
+            <input type="checkbox" id="PRs" name="PRs" /> <label for="PAs">Swap display H/V resolution</label><br/>
             <button type="submit">Upload</button>
         </form>
     </div>
     <div id="md5_display"></div>
     <div id="results_container"></div>
-    <hr style="width:50%">
+    <hr style="width:100%">
     <div>Get help at <a href="https://discord.com/channels/948029830325235753/1110966019389935616">Rocknix Discord</a> (rockchip-rk3326 channel)</div>
 
     <script>
@@ -35,7 +46,7 @@
             const downloadUrl = URL.createObjectURL(blob);
 
             const div = document.createElement('div');
-            div.id = 'downloadButton';
+            div.id = 'Results';
 
             // Trigger the download
             const a = document.createElement('a');
@@ -51,14 +62,14 @@
             help.innerHTML += 'Put the <code>mipi-panel.dtbo</code> file into <code>overlays</code> directory.';
             div.appendChild(help);
 
-            div.appendChild(document.createElement('hr'));
+            div.insertAdjacentHTML('beforeend', '<hr>  <h5>Feedback:</h5>');
 
             // Feedback form
             const fb = document.createElement('form');
             fb.action = "feedback/" + md5Hash;
             fb.method = "POST";
             fb.innerHTML  = '<label for="device">Your device:</label> <input type="text" id="device" name="device" required><br><br>';
-            fb.innerHTML += '<label for="description">Describe what is broken:</label>';
+            fb.innerHTML += '<label for="description">Describe what is broken. Tell how I can contact you if needed.</label>';
             fb.innerHTML += '<textarea id="description" name="description" rows="10" required></textarea><br><br>';
             fb.innerHTML += '<button type="submit">Submit</button>';
             div.appendChild(fb);
@@ -69,8 +80,8 @@
         document.getElementById('uploadForm').addEventListener('submit', async function(event) {
             event.preventDefault();
 
-            const oldbutton = document.getElementById('downloadButton');
-            if (oldbutton) { document.body.removeChild(oldbutton); }
+            const oldbutton = document.getElementById('Results');
+            if (oldbutton) { oldbutton.remove(); }
 
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
@@ -80,16 +91,21 @@
                 return;
             }
 
+            ovlOpts = ''
+            if (document.getElementById('RSi').checked) { ovlOpts += '-RSi'; }
+            if (document.getElementById('PRs').checked) { ovlOpts += '-PRs'; }
+
             // Calculate MD5 hash
             const reader = new FileReader();
             reader.onload = async function() {
                 const fileContents = reader.result;
                 const wordArray = CryptoJS.lib.WordArray.create(fileContents);
                 const md5Hash = CryptoJS.MD5(wordArray).toString();
-                document.getElementById("md5_display").innerText = 'MD5: ' + md5Hash;
+                const dtbo_name = md5Hash + ovlOpts;
+                document.getElementById("md5_display").innerText = 'dtbo name (MD5+opts): ' + dtbo_name;
 
                 // Check with server
-                const response = await fetch(`dtbo/${md5Hash}`);
+                const response = await fetch(`dtbo/${dtbo_name}`);
                 if (response.ok) {
                     showDownload(md5Hash, await response.blob());
                 } else if (response.status === 404) {
@@ -97,7 +113,7 @@
                     const formData = new FormData();
                     formData.append('file', file);
 
-                    const response = await fetch(`dtb_upload`, {
+                    const response = await fetch(`convert_dtb?opts=${ovlOpts}`, {
                         method: 'POST',
                         body: formData,
                     });
