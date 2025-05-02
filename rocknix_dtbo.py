@@ -61,10 +61,6 @@ def panel_to_desc(panel, args):
                 m.get_property("vsync-len").value,
                 m.get_property("vback-porch").value,
                 ]
-        # Quirk for D28s which has hactive/vactive swapped
-        if 'PRs' in args['flags']:
-            hor[0] = m.get_property("vactive").value
-            ver[0] = m.get_property("hactive").value
 
         mode = {'clock': clock, 'hor': hor, 'ver': ver}
         if (m.get_property("phandle").value == native):
@@ -214,6 +210,63 @@ def add_overlay(overlay, path):
             fragnode.append(ovlnode)
             return ovlnode
 
+def add_fixup(overlay, label, fixup_path):
+    if overlay.exist_node('__fixups__'):
+        fixups = overlay.get_node('__fixups__')
+    else:
+        fixups = fdt.Node('__fixups__')
+        overlay.add_item(fixups)
+    prev_paths = fixups.get_property(label)
+    if prev_paths:
+        fixups.set_property(label, prev_paths.data + [fixup_path])
+    else:
+        fixups.set_property(label, [fixup_path])
+
+def add_local_fixup(overlay, parent_path, name):
+    overlay.set_property(name, 0, path='__local_fixups__'+parent_path)
+
+def add_gpio_vol_keys(dt, overlay, gpio_keys_ovl):
+    symbols = dt.get_node('__symbols__')
+
+    keydata = dt.get_node('/play_joystick').get_property('key-gpios').data
+    pindata = dt.get_node('/pinctrl/buttons/gpio-key-pin').get_property('rockchip,pins').data
+    # extract volume keys from array
+    vol_up = keydata[14*3:15*3]
+    vol_up_pin = pindata[14*4:15*4]
+    vol_dn = keydata[15*3:16*3]
+    vol_dn_pin = pindata[15*4:16*4]
+
+    gpio_path = resolve_phandle(dt, vol_up[0])
+    gpio_sym = [p.name for p in symbols.props if p.value == gpio_path][0]
+    gpio_phandle = 0xffffffff
+
+    pins_path = gpio_keys_ovl.path+'/__overlay__/pinctrl/btns/btn-pins-vol-overlay'
+    keys_path = gpio_keys_ovl.path+'/__overlay__/gpio-keys-overlay'
+
+    pullup = 0xffffffff
+    overlay.set_property('rockchip,pins', vol_up_pin[0:3] + [pullup] + vol_dn_pin[0:3] + [pullup], path=pins_path)
+    pins_phandle = overlay.add_label('overlay_btns')
+    overlay.set_property('phandle', pins_phandle, path=pins_path)
+    add_fixup(overlay, 'pcfg_pull_up', pins_path+':rockchip,pins:12')
+    add_fixup(overlay, 'pcfg_pull_up', pins_path+':rockchip,pins:28')
+
+    overlay.set_property('compatible', 'gpio-keys', path=keys_path)
+    overlay.set_property('autorepeat', None, path=keys_path)
+    overlay.set_property('pinctrl-0', pins_phandle, path=keys_path)
+    add_local_fixup(overlay, keys_path, 'pinctrl-0')
+    overlay.set_property('pinctrl-names', 'default', path=keys_path)
+
+    overlay.set_property('gpios', [gpio_phandle, vol_up[1], vol_up[2]], path=keys_path+'/button-vol-up')
+    overlay.set_property('label', "VOLUMEUP", path=keys_path+'/button-vol-up')
+    overlay.set_property('linux,code', 0x73, path=keys_path+'/button-vol-up')
+    add_fixup(overlay, gpio_sym, keys_path+'/button-vol-up:gpios:0')
+
+    overlay.set_property('gpios', [gpio_phandle, vol_dn[1], vol_dn[2]], path=keys_path+'/button-vol-down')
+    overlay.set_property('label', "VOLUMEDOWN", path=keys_path+'/button-vol-down')
+    overlay.set_property('linux,code', 0x72, path=keys_path+'/button-vol-down')
+    add_fixup(overlay, gpio_sym, keys_path+'/button-vol-down:gpios:0')
+
+
 
 def make_dtbo(dtb_data, args):
     dt = fdt.parse_dtb(dtb_data)
@@ -243,6 +296,19 @@ def make_dtbo(dtb_data, args):
         rsi_ovl.set_property('invert-absry', 1)
         args['logger'].info(f"invert right stick on {rsi_ovl.path}")
 
+    # If stock DTB does not have ADC keys, disable adc-keys in overlay
+    if dt.exist_node('/adc-keys'):
+        pass
+    else:
+        noadck_ovl = add_overlay(overlay, '/')
+        overlay.set_property('compatible', 'deliberately-disabled-adc-keys', path=noadck_ovl.path+'/__overlay__/adc-keys')
+        args['logger'].info(f"disabled adc-keys")
+        # TODO: extract GPIO keys from play_joystick.key-gpios[14..15]
+        if dt.exist_node('/play_joystick'):
+            add_gpio_vol_keys(dt, overlay, noadck_ovl)
+
+
+
     if dt.exist_node('/rk817-sound'):
         snd = dt.get_node('/rk817-sound')
         # fetch raw   hp-det-gpio = <0x6f 0x16 0x00>;
@@ -253,15 +319,30 @@ def make_dtbo(dtb_data, args):
         gpiosyms = [p.name for p in symbols.props if p.value == hpdet_gpio_path]
         if gpiosyms:
             # on success, add overlay
-            hpdet_ovl = add_overlay(overlay, '/rk817-sound')
-            hpdet_ovl.set_property('simple-audio-card,hp-det-gpio', [0xffffffff, hpdet[1], hpdet[2]])
-            overlay.set_property(gpiosyms[0], hpdet_ovl.path+'/__overlay__:simple-audio-card,hp-det-gpio:0', path='/__fixups__')
+            gpio_sym = gpiosyms[0]
+            hpdet_ovl = add_overlay(overlay, '/')
+            rk817_path = hpdet_ovl.path+'/__overlay__/rk817-sound'
+            overlay.set_property('simple-audio-card,hp-det-gpio', [0xffffffff, hpdet[1], hpdet[2]], path=rk817_path)
+            add_fixup(overlay, gpio_sym, rk817_path+':simple-audio-card,hp-det-gpio:0')
+            hp_det = dt.get_node('/pinctrl/headphone/hp-det')
+            hp_det_pins = hp_det.get_property('rockchip,pins')
+            pins_path = hpdet_ovl.path+'/__overlay__/pinctrl/headphone/hp-det'
+            overlay.set_property('rockchip,pins', hp_det_pins[0:3] + [0xffffffff], path=pins_path)
+            if (hpdet[2] == 0):       # GPIO_ACTIVE_HIGH
+                add_fixup(overlay, 'pcfg_pull_down', pins_path+':rockchip,pins:12')
+            elif (hpdet[2] == 1):  # GPIO_ACTIVE_LOW
+                add_fixup(overlay, 'pcfg_pull_up', pins_path+':rockchip,pins:12')
             args['logger'].info(f"hp-det-gpio {gpiosyms[0]} on {hpdet_ovl.path}")
 
     # Move fixups to the very end (if any)
     if overlay.exist_node('__fixups__'):
         fixups = overlay.get_node('__fixups__')
         overlay.remove_node('__fixups__')
+        overlay.add_item(fixups)
+
+    if overlay.exist_node('__local_fixups__'):
+        fixups = overlay.get_node('__local_fixups__')
+        overlay.remove_node('__local_fixups__')
         overlay.add_item(fixups)
 
     # send the overlay to output
