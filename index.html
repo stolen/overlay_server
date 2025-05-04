@@ -33,6 +33,18 @@
             <input type="checkbox" id="LSi" name="LSi" /> <label for="LSi">Invert left stick</label>
                &mdash; requires <a href="static/rk3326-gameconsole-r36max.dtb">fresh dtb</a>! <br/>
             <input type="checkbox" id="RSi" name="RSi" /> <label for="RSi">Invert right stick</label><br/>
+            <select id="JP" name="JP">
+                <option value="" selected>default</option>
+                <option value="mm">my mini</option>
+            </select>
+            <label for="JP" style="display:inline-block">Joypad variant</label><br/>
+            <!--
+            <input type="checkbox" id="Dno" name="Dno" /> <label for="Dno">Display no original mode</label><br/>
+            <select id="DR" name="DR">
+                <option value="0">0</option> <option value="90">90</option> <option value="180">180</option> <option value="270">270</option>
+            </select>
+            <label for="DR" style="display:inline-block">Display rotation</label><br/>
+            -->
             <button type="submit">Upload</button>
         </form>
     </div>
@@ -95,7 +107,16 @@
             ovlOpts = ''
             if (document.getElementById('LSi').checked) { ovlOpts += '-LSi'; }
             if (document.getElementById('RSi').checked) { ovlOpts += '-RSi'; }
-            if (document.getElementById('PRs').checked) { ovlOpts += '-PRs'; }
+            jpSelect = document.getElementById('JP')
+            if (jpSelect.selectedIndex > 0) {
+                ovlOpts += '-JP' + jpSelect.value;
+            }
+            /*
+            if (document.getElementById('Dno').checked) { ovlOpts += '-Dno'; }
+            drSelect = document.getElementById('DR')
+            if (drSelect.selectedIndex > 0) {
+                ovlOpts += '-DR' + drSelect.selectedOptions[0].value;
+            } */
 
             // Calculate MD5 hash
             const reader = new FileReader();

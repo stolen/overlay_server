@@ -42,7 +42,11 @@ def panel_to_desc(panel, args):
 
 
     timings = panel.get_subnode("display-timings")
-    native = timings.get_property("native-mode").value
+    if 'Dno' in args['flags']:
+        # Skip original mode (it may be broken)
+        native = None
+    else:
+        native = timings.get_property("native-mode").value
 
     # Collect vendor modes
     modes = {}
@@ -317,6 +321,32 @@ def make_dtbo(dtb_data, args):
         rsi_ovl.set_property('invert-absrx', 1)
         rsi_ovl.set_property('invert-absry', 1)
         args['logger'].info(f"invert right stick on {rsi_ovl.path}")
+
+    # My mini has separate ADC channels for axis, so we need another driver
+    if 'JPmm' in args['flags']:
+        if (not rsi_ovl):
+            rsi_ovl = add_overlay(overlay, '&joypad')
+        rsi_ovl.set_property('compatible', "rocknix-joypad")
+        rsi_ovl.set_property('io-channel-names', ["key-RY", "key-RX", "key-LY", "key-LX"])
+        rsi_ovl.set_property('io-channels', [0xffffffff, 3, 0xffffffff, 3, 0xffffffff, 2, 0xffffffff, 1])
+        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:0')
+        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:8')
+        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:16')
+        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:24')
+        rsi_ovl.set_property('button-adc-scale', 2)
+        rsi_ovl.set_property('button-adc-deadzone', 216)
+        rsi_ovl.set_property('button-adc-fuzz', 54)
+        rsi_ovl.set_property('button-adc-flat', 54)
+        rsi_ovl.set_property('abs_x-p-tuning', 180)
+        rsi_ovl.set_property('abs_x-n-tuning', 180)
+        rsi_ovl.set_property('abs_y-p-tuning', 180)
+        rsi_ovl.set_property('abs_y-n-tuning', 180)
+        rsi_ovl.set_property('abs_rx-p-tuning', 0)
+        rsi_ovl.set_property('abs_rx-n-tuning', 0)
+        rsi_ovl.set_property('abs_ry-p-tuning', 0)
+        rsi_ovl.set_property('abs_ry-n-tuning', 0)
+        rsi_ovl.set_property('poll-interval', 10)
+        args['logger'].info(f"My Mini joypad tweaks on {rsi_ovl.path}")
 
     # If stock DTB does not have ADC keys, disable adc-keys in overlay
     if dt.exist_node('/adc-keys'):
