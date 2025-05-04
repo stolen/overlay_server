@@ -13,6 +13,7 @@ except:
     pass
 app.config['UPLOAD_DIR'] = 'uploads'
 app.config['DTBO_DIR'] = 'dtbo'
+app.config['STATIC_DIR'] = 'static'
 app.config['FEEDBACK_DIR'] = 'feedback'
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024  # 512K should be enough, dtbs are usually about 100K
 
@@ -46,6 +47,14 @@ def download_dtbo(md5):
     except:
         return ('Not found', 404, {})
 
+@app.route('/static/<file>')
+def download_static(file):
+    try:
+        f = open(os.path.join(app.config['STATIC_DIR'], secure_filename(file)), 'rb')
+        body = f.read()
+        return (body, 200, {'content-disposition': f'attachment; filename="{file}"'})
+    except:
+        return ('Not found', 404, {})
 
 @app.route('/convert_dtb', methods=['POST'])
 def upload_file():

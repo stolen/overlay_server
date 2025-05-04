@@ -9,7 +9,7 @@ import math
 
 
 
-def prop_default(prop, default):
+def prop_default(panel, prop, default):
     try:
         return panel.get_property(prop).value
     except:
@@ -27,10 +27,10 @@ def panel_to_desc(panel, args):
     acc = []
 
     delays = [
-            prop_default("prepare-delay-ms", 50),
-            prop_default("reset-delay-ms", 50),
-            prop_default("init-delay-ms", 50),
-            prop_default("enable-delay-ms", 50),
+            prop_default(panel, "prepare-delay-ms", 50),
+            prop_default(panel, "reset-delay-ms", 50),
+            prop_default(panel, "init-delay-ms", 50),
+            prop_default(panel, "enable-delay-ms", 50),
             20  # ready -- no such timeout in legacy dtbs
             ]
     delays_str = ','.join(map(str, delays))
@@ -281,17 +281,39 @@ def make_dtbo(dtb_data, args):
     # remove empty lines as pyfdt does not like them
     pdesc = [ l for l in pdesc if l != '']
 
+    panel_rst_gpio = panel.get_property('reset-gpios').data
+    gpio_sym = [p.name for p in symbols.props if p.value == resolve_phandle(dt, panel_rst_gpio[0])][0]
+    gpio_num = int(gpio_sym[4:])
+
     # create an overlay tree
     overlay = fdt.FDT()
     overlay.header.version = 17
 
-    panel_ovl = add_overlay(overlay, panelpath)
-    panel_ovl.set_property('compatible', 'rocknix,generic-dsi')
-    panel_ovl.set_property('panel_description', pdesc)
+    panel_ovl = add_overlay(overlay, '/')
+    panel_ovl_path = panel_ovl.path+'/__overlay__'+panelpath
+    overlay.set_property('compatible', 'rocknix,generic-dsi', path=panel_ovl_path)
+    overlay.set_property('panel_description', pdesc, path=panel_ovl_path)
+    # copy reset config
+    pins_path = panel_ovl.path+'/__overlay__/pinctrl/gpio-lcd/lcd-rst'
+    overlay.set_property('reset-gpios', [0xffffffff, panel_rst_gpio[1], panel_rst_gpio[2]], path=panel_ovl_path)
+    add_fixup(overlay, gpio_sym, panel_ovl_path+':reset-gpios:0')
+    overlay.set_property('rockchip,pins', [gpio_num, panel_rst_gpio[1], 0, 0xffffffff], path=pins_path)
+    add_fixup(overlay, 'pcfg_pull_none', pins_path+':rockchip,pins:12')
+
+    rsi_ovl = None
+    # Left stick was inverted by default, so invert inversion here
+    if 'LSi' not in args['flags']:
+        rsi_ovl = add_overlay(overlay, '&joypad')
+        rsi_ovl.set_property('invert-absx', 1)
+        rsi_ovl.set_property('invert-absy', 1)
+        args['logger'].info(f"left stick un-inverted on {rsi_ovl.path}")
+    else:
+        args['logger'].info(f"left stick left inverted")
 
     # If needed, invert right stick
     if 'RSi' in args['flags']:
-        rsi_ovl = add_overlay(overlay, '&joypad')
+        if (not rsi_ovl):
+            rsi_ovl = add_overlay(overlay, '&joypad')
         rsi_ovl.set_property('invert-absrx', 1)
         rsi_ovl.set_property('invert-absry', 1)
         args['logger'].info(f"invert right stick on {rsi_ovl.path}")

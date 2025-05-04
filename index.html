@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DTB override generator for Rocknix</title>
+    <title>DTB overlay generator for Rocknix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
     <style>
@@ -16,7 +16,7 @@
     </style>
 </head>
 <body>
-    <h1>Rocknix DTB overrides for <i>almost</i> supported devices</h1>
+    <h1>Rocknix DTB overlays for <i>almost</i> supported devices</h1>
     <h5>Note: this service is for Rocknix Nightly</h5>
 
     <div>
@@ -30,8 +30,9 @@
     <div>
         <form id="uploadForm">
             <input type="file" id="fileInput" required><br/>
+            <input type="checkbox" id="LSi" name="LSi" /> <label for="LSi">Invert left stick</label>
+               &mdash; requires <a href="static/rk3326-gameconsole-r36max.dtb">fresh dtb</a>! <br/>
             <input type="checkbox" id="RSi" name="RSi" /> <label for="RSi">Invert right stick</label><br/>
-            <input type="checkbox" id="PRs" name="PRs" /> <label for="PAs">Swap display H/V resolution</label><br/>
             <button type="submit">Upload</button>
         </form>
     </div>
@@ -50,7 +51,7 @@
 
             // Trigger the download
             const a = document.createElement('a');
-            a.innerHTML = '<button>Download override</button>';
+            a.innerHTML = '<button>Download overlay</button>';
             a.href = downloadUrl;
             a.download = 'mipi-panel.dtbo';
             div.appendChild(a);
@@ -92,6 +93,7 @@
             }
 
             ovlOpts = ''
+            if (document.getElementById('LSi').checked) { ovlOpts += '-LSi'; }
             if (document.getElementById('RSi').checked) { ovlOpts += '-RSi'; }
             if (document.getElementById('PRs').checked) { ovlOpts += '-PRs'; }
 
@@ -119,7 +121,7 @@
                     });
 
                     if (!response.ok) {
-                        alert("Override generation failed. Is uploaded file a dtb?");
+                        alert("Overlay generation failed. Is uploaded file a dtb?");
                         return;
                     }
 
