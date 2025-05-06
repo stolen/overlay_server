@@ -35,7 +35,11 @@ def panel_to_desc(panel, args):
             ]
     delays_str = ','.join(map(str, delays))
 
-    fmt = ['rgb888', 'rgb666', 'rgb666_packed', 'rgb565'] [panel.get_property("dsi,format").value]
+    fmtprop = panel.get_property("dsi,format")
+    if fmtprop:
+        fmt = ['rgb888', 'rgb666', 'rgb666_packed', 'rgb565'] [fmtprop.value]
+    else:
+        fmt = 'rgb888'
     lanes = panel.get_property("dsi,lanes").value
     flags = panel.get_property("dsi,flags").value
     flags |= 0x0400
@@ -303,6 +307,22 @@ def make_dtbo(dtb_data, args):
     add_fixup(overlay, gpio_sym, panel_ovl_path+':reset-gpios:0')
     overlay.set_property('rockchip,pins', [gpio_num, panel_rst_gpio[1], 0, 0xffffffff], path=pins_path)
     add_fixup(overlay, 'pcfg_pull_none', pins_path+':rockchip,pins:12')
+    # power supply gpio fetch (some trees do not have power-supply prop)
+    try:
+        panel_ps = dt.get_node(resolve_phandle(dt, panel.get_property('power-supply').value))
+        panel_ps_gpio = panel_ps.get_property('gpio').data
+        gpio_sym = [p.name for p in symbols.props if p.value == resolve_phandle(dt, panel_ps_gpio[0])][0]
+        gpio_num = int(gpio_sym[4:])
+        # power supply reg
+        panel_reg_path = panel_ovl.path+'/__overlay__/vcc18-lcd0'
+        overlay.set_property('gpio', [0xffffffff, panel_ps_gpio[1], panel_ps_gpio[2]], path=panel_reg_path)
+        add_fixup(overlay, gpio_sym, panel_reg_path+':gpio:0')
+        # power supply pinctrl
+        panel_ps_pin_path = panel_ovl.path+'/__overlay__/pinctrl/vcc18-lcd/vcc18-lcd-n'
+        overlay.set_property('rockchip,pins', [gpio_num, panel_ps_gpio[1], 0, 0xffffffff], path=panel_ps_pin_path)
+        add_fixup(overlay, 'pcfg_pull_none', panel_ps_pin_path+':rockchip,pins:12')
+    except:
+        pass
 
     rsi_ovl = None
     # Left stick was inverted by default, so invert inversion here
@@ -361,30 +381,31 @@ def make_dtbo(dtb_data, args):
 
 
 
-    if dt.exist_node('/rk817-sound'):
+    try:
         snd = dt.get_node('/rk817-sound')
         # fetch raw   hp-det-gpio = <0x6f 0x16 0x00>;
         hpdet = snd.get_property('hp-det-gpio').data
+        hp_det = dt.get_node('/pinctrl/headphone/hp-det')
+        hp_det_pins = hp_det.get_property('rockchip,pins')
         # resolve <0x6f> into '/pinctrl/gpio2@ff260000'
         hpdet_gpio_path = resolve_phandle(dt, hpdet[0])
         # find symbol 'gpio2' for path '/pinctrl/gpio2@ff260000'
         gpiosyms = [p.name for p in symbols.props if p.value == hpdet_gpio_path]
-        if gpiosyms:
-            # on success, add overlay
-            gpio_sym = gpiosyms[0]
-            hpdet_ovl = add_overlay(overlay, '/')
-            rk817_path = hpdet_ovl.path+'/__overlay__/rk817-sound'
-            overlay.set_property('simple-audio-card,hp-det-gpio', [0xffffffff, hpdet[1], hpdet[2]], path=rk817_path)
-            add_fixup(overlay, gpio_sym, rk817_path+':simple-audio-card,hp-det-gpio:0')
-            hp_det = dt.get_node('/pinctrl/headphone/hp-det')
-            hp_det_pins = hp_det.get_property('rockchip,pins')
-            pins_path = hpdet_ovl.path+'/__overlay__/pinctrl/headphone/hp-det'
-            overlay.set_property('rockchip,pins', hp_det_pins[0:3] + [0xffffffff], path=pins_path)
-            if (hpdet[2] == 0):       # GPIO_ACTIVE_HIGH
-                add_fixup(overlay, 'pcfg_pull_down', pins_path+':rockchip,pins:12')
-            elif (hpdet[2] == 1):  # GPIO_ACTIVE_LOW
-                add_fixup(overlay, 'pcfg_pull_up', pins_path+':rockchip,pins:12')
-            args['logger'].info(f"hp-det-gpio {gpiosyms[0]} on {hpdet_ovl.path}")
+        # on success, add overlay
+        gpio_sym = gpiosyms[0]
+        hpdet_ovl = add_overlay(overlay, '/')
+        rk817_path = hpdet_ovl.path+'/__overlay__/rk817-sound'
+        overlay.set_property('simple-audio-card,hp-det-gpio', [0xffffffff, hpdet[1], hpdet[2]], path=rk817_path)
+        add_fixup(overlay, gpio_sym, rk817_path+':simple-audio-card,hp-det-gpio:0')
+        pins_path = hpdet_ovl.path+'/__overlay__/pinctrl/headphone/hp-det'
+        overlay.set_property('rockchip,pins', hp_det_pins[0:3] + [0xffffffff], path=pins_path)
+        if (hpdet[2] == 0):       # GPIO_ACTIVE_HIGH
+            add_fixup(overlay, 'pcfg_pull_down', pins_path+':rockchip,pins:12')
+        elif (hpdet[2] == 1):  # GPIO_ACTIVE_LOW
+            add_fixup(overlay, 'pcfg_pull_up', pins_path+':rockchip,pins:12')
+        args['logger'].info(f"hp-det-gpio {gpiosyms[0]} on {hpdet_ovl.path}")
+    except:
+        pass
 
     # Move fixups to the very end (if any)
     if overlay.exist_node('__fixups__'):
