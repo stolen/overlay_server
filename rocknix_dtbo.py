@@ -323,6 +323,14 @@ def make_dtbo(dtb_data, args):
         add_fixup(overlay, 'pcfg_pull_none', panel_ps_pin_path+':rockchip,pins:12')
     except:
         pass
+    # some devices (e.g. R36s clone) have enable-gpios defined
+    try:
+        panel_en_gpio = panel.get_property('enable-gpios').data
+        gpio_sym = [p.name for p in symbols.props if p.value == resolve_phandle(dt, panel_en_gpio[0])][0]
+        overlay.set_property('enable-gpios', [0xffffffff, panel_en_gpio[1], panel_en_gpio[2]], path=panel_ovl_path)
+        add_fixup(overlay, gpio_sym, panel_ovl_path+':enable-gpios:0')
+    except:
+        pass
 
     rsi_ovl = None
     # Left stick was inverted by default, so invert inversion here
@@ -386,6 +394,11 @@ def make_dtbo(dtb_data, args):
         # fetch raw   hp-det-gpio = <0x6f 0x16 0x00>;
         hpdet = snd.get_property('hp-det-gpio').data
         hp_det = dt.get_node('/pinctrl/headphone/hp-det')
+        # for some reason hp detection polarity needs to be inverted (still not sure)
+        if hpdet[2] == 0:
+            hpdet[2] = 1
+        else:
+            hpdet[2] = 0
         hp_det_pins = hp_det.get_property('rockchip,pins')
         # resolve <0x6f> into '/pinctrl/gpio2@ff260000'
         hpdet_gpio_path = resolve_phandle(dt, hpdet[0])
