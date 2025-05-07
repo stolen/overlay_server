@@ -81,7 +81,13 @@ def upload_file():
         f.write(content)
     with open(os.path.join(app.config['DTBO_DIR'], ovlname), 'wb') as f:
         f.write(dtbo)
-    send_to_telegram(f"new overlay: {ovlname} for {file.filename}")
+
+    if 'silent' not in request.values:
+        send_to_telegram(f"new overlay: {ovlname} for {file.filename}")
+    app.logger.info(f"silent = {request.values.get('silent')}")
+    #if request.values.get('silent'):
+    #    pass
+    #else:
 
     return (dtbo, 200, {'content-disposition': 'attachment; filename="mipi-panel.dtbo"'})
 
