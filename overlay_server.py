@@ -2,7 +2,7 @@ from flask import Flask, request, render_template
 from werkzeug.utils import secure_filename
 import hashlib
 import os, time
-import requests, json
+import requests, json, re
 
 from rocknix_dtbo import make_dtbo
 
@@ -52,7 +52,14 @@ def download_static(file):
     try:
         f = open(os.path.join(app.config['STATIC_DIR'], secure_filename(file)), 'rb')
         body = f.read()
-        return (body, 200, {'content-disposition': f'attachment; filename="{file}"'})
+        headers = {}
+        if re.search(r'\.js$', file):
+            headers = {'content-type': 'application/javascript'}
+        elif re.search(r'\.css$', file):
+            headers = {'content-type': 'text/css'}
+        else:
+            headers = {'content-type': 'application/octet-stream', 'content-disposition': f'attachment; filename="{file}"'}
+        return (body, 200, headers)
     except:
         return ('Not found', 404, {})
 
