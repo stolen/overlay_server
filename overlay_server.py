@@ -91,28 +91,23 @@ def upload_file():
 
     if 'silent' not in request.values:
         send_to_telegram(f"new overlay: {ovlname} for {file.filename}")
-    app.logger.info(f"silent = {request.values.get('silent')}")
-    #if request.values.get('silent'):
-    #    pass
-    #else:
 
     return (dtbo, 200, {'content-disposition': 'attachment; filename="mipi-panel.dtbo"'})
 
 
 @app.route('/feedback/<md5>', methods=['POST'])
 def feedback(md5):
+    user = request.form.get('user')
     dev = request.form.get('device')
     desc = request.form.get('description')
     if (not dev) or (not desc):
         return ("Bad form", 400, {})
     os.makedirs(app.config['FEEDBACK_DIR'], exist_ok=True)
     filename = secure_filename(md5) + '-' + str(time.time())
+    report = f"`{filename}`\nfeedback from `{user}`\ndev: `{dev}`\n\n{desc}\n"
     with open(os.path.join(app.config['FEEDBACK_DIR'], filename), 'w') as f:
-        f.write('device: ' + dev)
-        f.write('\n\n')
-        f.write(desc)
-        f.write('\n')
-    send_to_telegram(f"feedback {filename}\ndev: {dev}\n\n{desc}")
+        f.write(report)
+    send_to_telegram(report)
 
     return ("Accepted", 201, {})
 

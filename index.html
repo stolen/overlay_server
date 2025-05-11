@@ -100,7 +100,8 @@
             fb.action = "feedback/" + md5Hash;
             fb.method = "POST";
             fb.innerHTML  = '<label for="device">Your device:</label> <input type="text" id="device" name="device" required><br><br>';
-            fb.innerHTML += '<label for="description">Describe what is broken. Tell how I can contact you if needed.</label>';
+            fb.innerHTML += '<label for="user">Your Discord name:</label> <input type="text" id="user" name="user"><br><br>';
+            fb.innerHTML += '<label for="description">Describe what is broken:</label>';
             fb.innerHTML += '<textarea id="description" name="description" rows="10" required></textarea><br><br>';
             fb.innerHTML += '<button type="submit">Submit</button>';
             div.appendChild(fb);
