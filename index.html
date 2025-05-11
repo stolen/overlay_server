@@ -48,6 +48,7 @@
                 <option value="270">270&deg; (left up)</option>
             </select>
             <label for="DR" style="display:inline-block">Display rotation</label><br/>
+            <input type="checkbox" id="HPi" name="HPi" /> <label for="HPi">Invert headphone detection (if there is no sound)</label><br/>
             <button type="submit">Upload</button>
         </form>
     </div>
@@ -57,6 +58,7 @@
     <hr style="width:100%">
     <h5>Changelog</h5>
     <ul>
+        <li>2025-05-11 add option to invert headphone detection</li>
         <li>2025-05-11 add display rotaion option</li>
         <li>2025-05-07 fix audio</li>
         <li>2025-05-06 fix errors when processing some dtbs</li>
@@ -134,6 +136,7 @@
             if (drSelect.selectedIndex > 0) {
                 ovlOpts += '-DR' + drSelect.selectedOptions[0].value;
             }
+            if (document.getElementById('HPi').checked) { ovlOpts += '-HPi'; }
 
             // Calculate MD5 hash
             const reader = new FileReader();
