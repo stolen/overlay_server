@@ -401,10 +401,11 @@ def make_dtbo(dtb_data, args):
         hpdet = snd.get_property('hp-det-gpio').data
         hp_det = dt.get_node('/pinctrl/headphone/hp-det')
         # for some reason hp detection polarity needs to be inverted (still not sure)
-        if hpdet[2] == 0:
-            hpdet[2] = 1
-        else:
-            hpdet[2] = 0
+        if 'HPi' not in args['flags']:
+            if hpdet[2] == 0:
+                hpdet[2] = 1
+            else:
+                hpdet[2] = 0
         hp_det_pins = hp_det.get_property('rockchip,pins')
         # resolve <0x6f> into '/pinctrl/gpio2@ff260000'
         hpdet_gpio_path = resolve_phandle(dt, hpdet[0])
