@@ -301,6 +301,12 @@ def make_dtbo(dtb_data, args):
     panel_ovl_path = panel_ovl.path+'/__overlay__'+panelpath
     overlay.set_property('compatible', 'rocknix,generic-dsi', path=panel_ovl_path)
     overlay.set_property('panel_description', pdesc, path=panel_ovl_path)
+    if 'DR90' in args['flags']:
+        overlay.set_property('rotation', 90, path=panel_ovl_path)
+    elif 'DR180' in args['flags']:
+        overlay.set_property('rotation', 180, path=panel_ovl_path)
+    elif 'DR270' in args['flags']:
+        overlay.set_property('rotation', 270, path=panel_ovl_path)
     # copy reset config
     pins_path = panel_ovl.path+'/__overlay__/pinctrl/gpio-lcd/lcd-rst'
     overlay.set_property('reset-gpios', [0xffffffff, panel_rst_gpio[1], panel_rst_gpio[2]], path=panel_ovl_path)
