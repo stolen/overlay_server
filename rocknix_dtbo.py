@@ -195,11 +195,15 @@ def panel_to_desc(panel, args):
 
     return acc
 
-def resolve_phandle(dt, phandle):
-    paths = [os.path.join(p.parent.path, p.parent.name)
+def node_by_phandle(dt, phandle):
+    nodes = [p.parent
              for p in dt.search('phandle', fdt.ItemType.PROP_WORDS)
              if p.value == phandle]
-    return paths[0]
+    return nodes[0]
+
+def resolve_phandle(dt, phandle):
+    p = node_by_phandle(dt, phandle)
+    return os.path.join(p.path, p.name)
 
 def add_overlay(overlay, path):
     for f in range(100):
@@ -407,6 +411,7 @@ def make_dtbo(dtb_data, args):
             else:
                 hpdet[2] = 0
         hp_det_pins = hp_det.get_property('rockchip,pins')
+        hp_det_pull_node = node_by_phandle(dt, hp_det_pins[3])
         # resolve <0x6f> into '/pinctrl/gpio2@ff260000'
         hpdet_gpio_path = resolve_phandle(dt, hpdet[0])
         # find symbol 'gpio2' for path '/pinctrl/gpio2@ff260000'
@@ -419,13 +424,14 @@ def make_dtbo(dtb_data, args):
         add_fixup(overlay, gpio_sym, rk817_path+':simple-audio-card,hp-det-gpio:0')
         pins_path = hpdet_ovl.path+'/__overlay__/pinctrl/headphone/hp-det'
         overlay.set_property('rockchip,pins', hp_det_pins[0:3] + [0xffffffff], path=pins_path)
-        if (hpdet[2] == 0):       # GPIO_ACTIVE_HIGH
+        # Restore bias reference
+        if hp_det_pull_node.exist_property('bias-pull-down'):
             add_fixup(overlay, 'pcfg_pull_down', pins_path+':rockchip,pins:12')
-        elif (hpdet[2] == 1):  # GPIO_ACTIVE_LOW
+        else:
             add_fixup(overlay, 'pcfg_pull_up', pins_path+':rockchip,pins:12')
         args['logger'].info(f"hp-det-gpio {gpiosyms[0]} on {hpdet_ovl.path}")
-    except:
-        pass
+    except Exception as e:
+        args['logger'].info(e)
 
     # Move fixups to the very end (if any)
     if overlay.exist_node('__fixups__'):
