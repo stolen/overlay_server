@@ -387,9 +387,18 @@ def make_dtbo(dtb_data, args):
         args['logger'].info(f"My Mini joypad tweaks on {rsi_ovl.path}")
 
     # If stock DTB does not have ADC keys, disable adc-keys in overlay
-    if dt.exist_node('/adc-keys'):
-        pass
+    need_adckeys_disable = False
+    if not dt.exist_node('/adc-keys'):
+        need_adckeys_disable = True
     else:
+        adckeys_orig = dt.get_node('/adc-keys')
+        adckeys_status = adckeys_orig.get_property('status')
+        if (adckeys_status) and (adckeys_status.value == 'disabled'):
+            need_adckeys_disable = True
+        else:
+            # usually we just don't have status property, so consider this valid
+            need_adckeys_disable = False
+    if need_adckeys_disable:
         noadck_ovl = add_overlay(overlay, '/')
         overlay.set_property('compatible', 'deliberately-disabled-adc-keys', path=noadck_ovl.path+'/__overlay__/adc-keys')
         args['logger'].info(f"disabled adc-keys")
