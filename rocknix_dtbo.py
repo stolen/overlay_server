@@ -400,11 +400,14 @@ def make_dtbo(dtb_data, args):
             need_adckeys_disable = False
     if need_adckeys_disable:
         noadck_ovl = add_overlay(overlay, '/')
-        overlay.set_property('compatible', 'deliberately-disabled-adc-keys', path=noadck_ovl.path+'/__overlay__/adc-keys')
+        overlay.set_property('status', 'disabled', path=noadck_ovl.path+'/__overlay__/adc-keys')
         args['logger'].info(f"disabled adc-keys")
         # TODO: extract GPIO keys from play_joystick.key-gpios[14..15]
         if dt.exist_node('/play_joystick'):
             add_gpio_vol_keys(dt, overlay, noadck_ovl)
+    else:
+        adck_ovl = add_overlay(overlay, '/')
+        overlay.set_property('status', 'okay', path=adck_ovl.path+'/__overlay__/adc-keys')
 
 
 
