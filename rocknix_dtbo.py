@@ -279,6 +279,29 @@ def add_gpio_vol_keys(dt, overlay, gpio_keys_ovl):
     add_fixup(overlay, gpio_sym, keys_path+'/button-vol-down:gpios:0')
 
 
+def switch_joypad_to_mymini(overlay, jp_ovl):
+    # My mini has separate ADC channels for axis, so we need another driver
+    jp_ovl.set_property('compatible', "rocknix-joypad")
+    jp_ovl.set_property('io-channel-names', ["key-RY", "key-RX", "key-LY", "key-LX"])
+    jp_ovl.set_property('io-channels', [0xffffffff, 3, 0xffffffff, 3, 0xffffffff, 2, 0xffffffff, 1])
+    add_fixup(overlay, 'saradc', jp_ovl.path+'/__overlay__:io-channels:0')
+    add_fixup(overlay, 'saradc', jp_ovl.path+'/__overlay__:io-channels:8')
+    add_fixup(overlay, 'saradc', jp_ovl.path+'/__overlay__:io-channels:16')
+    add_fixup(overlay, 'saradc', jp_ovl.path+'/__overlay__:io-channels:24')
+    jp_ovl.set_property('button-adc-scale', 2)
+    jp_ovl.set_property('button-adc-deadzone', 216)
+    jp_ovl.set_property('button-adc-fuzz', 54)
+    jp_ovl.set_property('button-adc-flat', 54)
+    jp_ovl.set_property('abs_x-p-tuning', 180)
+    jp_ovl.set_property('abs_x-n-tuning', 180)
+    jp_ovl.set_property('abs_y-p-tuning', 180)
+    jp_ovl.set_property('abs_y-n-tuning', 180)
+    jp_ovl.set_property('abs_rx-p-tuning', 0)
+    jp_ovl.set_property('abs_rx-n-tuning', 0)
+    jp_ovl.set_property('abs_ry-p-tuning', 0)
+    jp_ovl.set_property('abs_ry-n-tuning', 0)
+    jp_ovl.set_property('poll-interval', 10)
+
 
 def make_dtbo(dtb_data, args):
     dt = fdt.parse_dtb(dtb_data)
@@ -342,49 +365,6 @@ def make_dtbo(dtb_data, args):
     except:
         pass
 
-    rsi_ovl = None
-    # Left stick was inverted by default, so invert inversion here
-    if 'LSi' not in args['flags']:
-        rsi_ovl = add_overlay(overlay, '&joypad')
-        rsi_ovl.set_property('invert-absx', 1)
-        rsi_ovl.set_property('invert-absy', 1)
-        args['logger'].info(f"left stick un-inverted on {rsi_ovl.path}")
-    else:
-        args['logger'].info(f"left stick left inverted")
-
-    # If needed, invert right stick
-    if 'RSi' in args['flags']:
-        if (not rsi_ovl):
-            rsi_ovl = add_overlay(overlay, '&joypad')
-        rsi_ovl.set_property('invert-absrx', 1)
-        rsi_ovl.set_property('invert-absry', 1)
-        args['logger'].info(f"invert right stick on {rsi_ovl.path}")
-
-    # My mini has separate ADC channels for axis, so we need another driver
-    if 'JPmm' in args['flags']:
-        if (not rsi_ovl):
-            rsi_ovl = add_overlay(overlay, '&joypad')
-        rsi_ovl.set_property('compatible', "rocknix-joypad")
-        rsi_ovl.set_property('io-channel-names', ["key-RY", "key-RX", "key-LY", "key-LX"])
-        rsi_ovl.set_property('io-channels', [0xffffffff, 3, 0xffffffff, 3, 0xffffffff, 2, 0xffffffff, 1])
-        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:0')
-        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:8')
-        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:16')
-        add_fixup(overlay, 'saradc', rsi_ovl.path+'/__overlay__:io-channels:24')
-        rsi_ovl.set_property('button-adc-scale', 2)
-        rsi_ovl.set_property('button-adc-deadzone', 216)
-        rsi_ovl.set_property('button-adc-fuzz', 54)
-        rsi_ovl.set_property('button-adc-flat', 54)
-        rsi_ovl.set_property('abs_x-p-tuning', 180)
-        rsi_ovl.set_property('abs_x-n-tuning', 180)
-        rsi_ovl.set_property('abs_y-p-tuning', 180)
-        rsi_ovl.set_property('abs_y-n-tuning', 180)
-        rsi_ovl.set_property('abs_rx-p-tuning', 0)
-        rsi_ovl.set_property('abs_rx-n-tuning', 0)
-        rsi_ovl.set_property('abs_ry-p-tuning', 0)
-        rsi_ovl.set_property('abs_ry-n-tuning', 0)
-        rsi_ovl.set_property('poll-interval', 10)
-        args['logger'].info(f"My Mini joypad tweaks on {rsi_ovl.path}")
 
     # If stock DTB does not have ADC keys, disable adc-keys in overlay
     need_adckeys_disable = False
@@ -400,6 +380,7 @@ def make_dtbo(dtb_data, args):
             need_adckeys_disable = False
     if need_adckeys_disable:
         noadck_ovl = add_overlay(overlay, '/')
+        overlay.set_property('dtbo_comment', 'deliberately-disabled-adc-keys', path=noadck_ovl.path+'/__overlay__/adc-keys')
         overlay.set_property('status', 'disabled', path=noadck_ovl.path+'/__overlay__/adc-keys')
         args['logger'].info(f"disabled adc-keys")
         # TODO: extract GPIO keys from play_joystick.key-gpios[14..15]
@@ -409,6 +390,30 @@ def make_dtbo(dtb_data, args):
         adck_ovl = add_overlay(overlay, '/')
         overlay.set_property('status', 'okay', path=adck_ovl.path+'/__overlay__/adc-keys')
 
+
+    # joypad overlay always present to simplify different options
+    jp_ovl = add_overlay(overlay, '&joypad')
+
+    # If not explicitly specified, disabled adc-keys imply multi-adc MyMini-style joypad
+    if 'JPk36' in args['flags']:
+        pass
+    elif ('JPmm' in args['flags']) or (need_adckeys_disable):
+        args['logger'].info(f"My Mini joypad tweaks on {jp_ovl.path}")
+        switch_joypad_to_mymini(overlay, jp_ovl)
+
+    # Left stick was inverted by default, so invert inversion here
+    if ('LSi' not in args['flags']) ^ (need_adckeys_disable):
+        jp_ovl.set_property('invert-absx', 1)
+        jp_ovl.set_property('invert-absy', 1)
+        args['logger'].info(f"left stick un-inverted on {jp_ovl.path}")
+    else:
+        args['logger'].info(f"left stick left inverted")
+
+    # If needed, invert right stick
+    if 'RSi' in args['flags']:
+        jp_ovl.set_property('invert-absrx', 1)
+        jp_ovl.set_property('invert-absry', 1)
+        args['logger'].info(f"invert right stick on {jp_ovl.path}")
 
 
     try:

@@ -34,8 +34,9 @@
                &mdash; requires <a href="static/rk3326-gameconsole-r36max.dtb">fresh dtb</a>! <br/>
             <input type="checkbox" id="RSi" name="RSi" /> <label for="RSi">Invert right stick</label><br/>
             <select id="JP" name="JP">
-                <option value="" selected>default</option>
-                <option value="mm">my mini</option>
+                <option value="" selected>auto</option>
+                <option value="k36">K36 (2 sticks)</option>
+                <option value="mm">my mini (1 stick)</option>
             </select>
             <label for="JP" style="display:inline-block">Joypad variant</label><br/>
             <!--
@@ -58,6 +59,7 @@
     <hr style="width:100%">
     <h5>Changelog</h5>
     <ul>
+        <li>2025-06-21 autodetect MyMini joypad</li>
         <li>2025-06-08 detect disabled adc volume keys (should fix always booting to recovery)</li>
         <li>2025-05-21 fix headphone detection pin pull (should fix sound)</li>
         <li>2025-05-11 add option to invert headphone detection</li>
