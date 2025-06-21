@@ -3,7 +3,7 @@
 # https://pypi.org/project/fdt/
 # pip install fdt
 
-import os
+import os, sys
 import fdt
 import math
 
@@ -455,3 +455,28 @@ def make_dtbo(dtb_data, args):
 
     # send the overlay to output
     return overlay.to_dtb()
+
+
+if __name__ == "__main__":
+    import argparse, logging
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger("dtbo")
+
+    parser = argparse.ArgumentParser(description="Generate a dtbo from a stock dtb")
+    parser.add_argument(dest="src", help="input stock dtb path", metavar="/path/to/stock.dtb")
+    parser.add_argument(dest="opts", help="dtbo options", nargs='?', metavar="LSi-HPi", default="")
+    parser.add_argument("-o", "--output", help="output (dtbo) path")
+    args = parser.parse_args()
+
+    with open(args.src, 'rb') as f:
+        content = f.read()
+
+    flags = args.opts.split('-')
+    flags = [ f for f in flags if f != '']
+    dtbo = make_dtbo(content, {'flags': flags, 'logger': logger})
+
+    if args.output:
+        with open(args.output, 'wb') as f:
+            f.write(dtbo)
+    else:
+        sys.stdout.buffer.write(dtbo)
