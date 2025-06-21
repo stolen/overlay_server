@@ -20,7 +20,6 @@
     <h5>Note: this service is for Rocknix Nightly</h5>
 
     <div>
-    Please make sure you have a fresh (20250427 or later) image installed.<br/>
     Download at <a href=https://nightly.rocknix.org/><b>https://nightly.rocknix.org/</b></a><br/>
     For K36, R36Max and similar "EE Clones" you need <b>B</b> image, e.g. <code>ROCKNIX-RK3326.aarch64-20250430-b.img.gz</code><br/>
     </div>
@@ -30,15 +29,14 @@
     <div>
         <form id="uploadForm">
             <input type="file" id="fileInput" required><br/>
-            <input type="checkbox" id="LSi" name="LSi" /> <label for="LSi">Invert left stick</label>
-               &mdash; requires <a href="static/rk3326-gameconsole-r36max.dtb">fresh dtb</a>! <br/>
-            <input type="checkbox" id="RSi" name="RSi" /> <label for="RSi">Invert right stick</label><br/>
             <select id="JP" name="JP">
                 <option value="" selected>auto</option>
                 <option value="k36">K36 (2 sticks)</option>
                 <option value="mm">my mini (1 stick)</option>
             </select>
             <label for="JP" style="display:inline-block">Joypad variant</label><br/>
+            <input type="checkbox" id="LSi" name="LSi" /> <label for="LSi">Invert left stick</label><br/>
+            <input type="checkbox" id="RSi" name="RSi" /> <label for="RSi">Invert right stick</label><br/>
             <!--
             <input type="checkbox" id="Dno" name="Dno" /> <label for="Dno">Display no original mode</label><br/>
             -->
