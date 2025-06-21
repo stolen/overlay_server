@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from flask import Flask, request, render_template
 from werkzeug.utils import secure_filename
 import hashlib
@@ -18,7 +20,7 @@ app.config['FEEDBACK_DIR'] = 'feedback'
 app.config['MAX_CONTENT_LENGTH'] = 512 * 1024  # 512K should be enough, dtbs are usually about 100K
 
 
-def send_to_telegram(message):
+def send_to_telegram(message, params):
     """Send a message to a Telegram chat."""
     if not 'TELEGRAM_APIKEY' in app.config:
         return None
@@ -30,6 +32,8 @@ def send_to_telegram(message):
             "text": message,
             "parse_mode": "Markdown"
         }
+        payload.update(params)
+        app.logger.info(f"tg post {json.dumps(payload)}")
         response = requests.post(url, json=payload)
     return response.status_code, response.text
 
@@ -90,7 +94,7 @@ def upload_file():
         f.write(dtbo)
 
     if 'silent' not in request.values:
-        send_to_telegram(f"new overlay: {ovlname} for {file.filename}")
+        send_to_telegram(f"new overlay: {ovlname} for {file.filename}", {"disable_notification": True})
 
     return (dtbo, 200, {'content-disposition': 'attachment; filename="mipi-panel.dtbo"'})
 
@@ -107,7 +111,7 @@ def feedback(md5):
     report = f"`{filename}`\nfeedback from `{user}`\ndev: `{dev}`\n\n{desc}\n"
     with open(os.path.join(app.config['FEEDBACK_DIR'], filename), 'w') as f:
         f.write(report)
-    send_to_telegram(report)
+    send_to_telegram(report, {})
 
     return ("Accepted", 201, {})
 
