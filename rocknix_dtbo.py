@@ -334,6 +334,13 @@ def make_dtbo(dtb_data, args):
         overlay.set_property('rotation', 180, path=panel_ovl_path)
     elif 'DR270' in args['flags']:
         overlay.set_property('rotation', 270, path=panel_ovl_path)
+
+    compat = dt.get_node('/').get_property('compatible').data[0]
+    args['logger'].info(f"compatible {compat}")
+    if 'odroidgo3' in compat:
+        # quick return for well supported R36s
+        return overlay.to_dtb()
+
     # copy reset config
     pins_path = panel_ovl.path+'/__overlay__/pinctrl/gpio-lcd/lcd-rst'
     overlay.set_property('reset-gpios', [0xffffffff, panel_rst_gpio[1], panel_rst_gpio[2]], path=panel_ovl_path)
