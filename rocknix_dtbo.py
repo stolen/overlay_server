@@ -425,25 +425,46 @@ def make_dtbo(dtb_data, args):
 
     try:
         snd = dt.get_node('/rk817-sound')
+
         # fetch raw   hp-det-gpio = <0x6f 0x16 0x00>;
         hpdet = snd.get_property('hp-det-gpio').data
         hp_det = dt.get_node('/pinctrl/headphone/hp-det')
-        # for some reason hp detection polarity needs to be inverted on some devices
-        if 'HPi' in args['flags']:
-            if hpdet[2] == 0:
-                hpdet[2] = 1
-            else:
-                hpdet[2] = 0
         hp_det_pins = hp_det.get_property('rockchip,pins')
         hp_det_pull_node = node_by_phandle(dt, hp_det_pins[3])
         # resolve <0x6f> into '/pinctrl/gpio2@ff260000'
         hpdet_gpio_path = resolve_phandle(dt, hpdet[0])
         # find symbol 'gpio2' for path '/pinctrl/gpio2@ff260000'
         gpiosyms = [p.name for p in symbols.props if p.value == hpdet_gpio_path]
-        # on success, add overlay
         gpio_sym = gpiosyms[0]
+
+        # on success, add overlay
         hpdet_ovl = add_overlay(overlay, '/')
-        rk817_path = hpdet_ovl.path+'/__overlay__/rk817-sound'
+
+        # Determine preset, configure amplifier if needed
+        if snd.exist_property('spk-con-gpio'):
+            rk817_path = hpdet_ovl.path+'/__overlay__/rk817-sound-amplified'
+            amp_gpio = snd.get_property('spk-con-gpio').data
+            amp_gpio_sym = [p.name for p in symbols.props if p.value == resolve_phandle(dt, amp_gpio[0])][0]
+            gpio_num = int(amp_gpio_sym[4:])
+            args['logger'].info(f"spk-con-gpio {amp_gpio_sym} {amp_gpio[1]} on {hpdet_ovl.path}")
+
+            amp_path = hpdet_ovl.path+'/__overlay__/audio-amplifier'
+            overlay.set_property('enable-gpios', [0xffffffff, amp_gpio[1], amp_gpio[2]], path=amp_path)
+            add_fixup(overlay, amp_gpio_sym, amp_path+':enable-gpios:0')
+
+            amp_pc_path = hpdet_ovl.path+'/__overlay__/pinctrl/speaker/spk-amp-enable-h'
+            overlay.set_property('rockchip,pins', [gpio_num, amp_gpio[1], 0, 0xffffffff], path=amp_pc_path)
+            add_fixup(overlay, 'pcfg_pull_none', amp_pc_path+':rockchip,pins:12')
+        else:
+            rk817_path = hpdet_ovl.path+'/__overlay__/rk817-sound-simple'
+
+        overlay.set_property('status', 'okay', path=rk817_path)
+        # for some reason hp detection polarity needs to be inverted on some devices
+        if 'HPi' in args['flags']:
+            if hpdet[2] == 0:
+                hpdet[2] = 1
+            else:
+                hpdet[2] = 0
         overlay.set_property('simple-audio-card,hp-det-gpio', [0xffffffff, hpdet[1], hpdet[2]], path=rk817_path)
         add_fixup(overlay, gpio_sym, rk817_path+':simple-audio-card,hp-det-gpio:0')
         pins_path = hpdet_ovl.path+'/__overlay__/pinctrl/headphone/hp-det'
@@ -454,6 +475,7 @@ def make_dtbo(dtb_data, args):
         else:
             add_fixup(overlay, 'pcfg_pull_up', pins_path+':rockchip,pins:12')
         args['logger'].info(f"hp-det-gpio {gpiosyms[0]} on {hpdet_ovl.path}")
+
     except Exception as e:
         args['logger'].info(e)
 
