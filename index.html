@@ -21,7 +21,7 @@
 
     <div>
     Download at <a href=https://nightly.rocknix.org/><b>https://nightly.rocknix.org/</b></a><br/>
-    For K36, R36Max and similar "EE Clones" you need <b>B</b> image, e.g. <code>ROCKNIX-RK3326.aarch64-20250430-b.img.gz</code><br/>
+    For K36, R36Max and similar "EE Clones" you need <b>B</b> image, e.g. <code>ROCKNIX-RK3326.aarch64-20251217-b.img.gz</code><br/>
     </div>
 
     <hr style="width:100%">
@@ -47,7 +47,8 @@
                 <option value="270">270&deg; (left up)</option>
             </select>
             <label for="DR" style="display:inline-block">Display rotation</label><br/>
-            <input type="checkbox" id="HPi" name="HPi" /> <label for="HPi">Invert headphone detection (if there is no sound)</label><br/>
+            <input type="checkbox" id="HPi" name="HPi" /> <label for="HPi">Invert headphone detection (if speaker works only with headphones plugged)</label><br/>
+            <input type="checkbox" id="SRs" name="SRs" /> <label for="SRs">Force simple audio routing (if headphones work, but speaker doesn't)</label><br/>
             <button type="submit">Upload</button>
         </form>
     </div>
@@ -140,6 +141,7 @@
                 ovlOpts += '-DR' + drSelect.selectedOptions[0].value;
             }
             if (document.getElementById('HPi').checked) { ovlOpts += '-HPi'; }
+            if (document.getElementById('SRs').checked) { ovlOpts += '-SRs'; }
 
             // Calculate MD5 hash
             const reader = new FileReader();
