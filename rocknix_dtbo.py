@@ -441,11 +441,20 @@ def make_dtbo(dtb_data, args):
         hpdet_ovl = add_overlay(overlay, '/')
 
         force_simple_audio_routing = ('SRs' in args['flags'])
+        amp_gpio = None
+        if not force_simple_audio_routing:
+            if snd.exist_property('spk-con-gpio'):
+                amp_gpio = snd.get_property('spk-con-gpio').data
+            elif snd.exist_property('rockchip,codec'):
+                snd_codec_ph = snd.get_property('rockchip,codec').value
+                snd_codec_path = resolve_phandle(dt, snd_codec_ph)
+                snd_codec = dt.get_node(snd_codec_path)
+                if snd_codec.exist_property('spk-ctl-gpios'):
+                    amp_gpio = snd_codec.get_property('spk-ctl-gpios').data
 
         # Determine preset, configure amplifier if needed
-        if snd.exist_property('spk-con-gpio') and not force_simple_audio_routing:
+        if amp_gpio:
             rk817_path = hpdet_ovl.path+'/__overlay__/rk817-sound-amplified'
-            amp_gpio = snd.get_property('spk-con-gpio').data
             amp_gpio_sym = [p.name for p in symbols.props if p.value == resolve_phandle(dt, amp_gpio[0])][0]
             gpio_num = int(amp_gpio_sym[4:])
             args['logger'].info(f"spk-con-gpio {amp_gpio_sym} {amp_gpio[1]} on {hpdet_ovl.path}")
