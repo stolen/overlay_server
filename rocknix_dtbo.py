@@ -476,8 +476,8 @@ def make_dtbo(dtb_data, args):
                 hpdet[2] = 1
             else:
                 hpdet[2] = 0
-        overlay.set_property('simple-audio-card,hp-det-gpio', [0xffffffff, hpdet[1], hpdet[2]], path=rk817_path)
-        add_fixup(overlay, gpio_sym, rk817_path+':simple-audio-card,hp-det-gpio:0')
+        overlay.set_property('simple-audio-card,hp-det-gpios', [0xffffffff, hpdet[1], hpdet[2]], path=rk817_path)
+        add_fixup(overlay, gpio_sym, rk817_path+':simple-audio-card,hp-det-gpios:0')
         pins_path = hpdet_ovl.path+'/__overlay__/pinctrl/headphone/hp-det'
         overlay.set_property('rockchip,pins', hp_det_pins[0:3] + [0xffffffff], path=pins_path)
         # Restore bias reference
